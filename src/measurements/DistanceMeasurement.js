@@ -18,6 +18,7 @@ export class DistanceMeasurement extends Measurement {
    * Update the measurement visualization (called every frame like Potree)
    */
   update() {
+    console.log(`DistanceMeasurement.update() - points: ${this.points.length}`);
     if (this.points.length === 0) return;
 
     // Update markers
@@ -35,15 +36,22 @@ export class DistanceMeasurement extends Measurement {
    */
   getResult() {
     return this._getCachedResult(() => {
+      console.log('DistanceMeasurement.getResult() called');
+      console.log('  points.length:', this.points.length);
+
       if (this.points.length < 2) {
+        console.log('  Returning 0 (less than 2 points)');
         return { distanceTotal: 0 };
       }
 
       let totalDistance = 0;
       for (let i = 0; i < this.points.length - 1; i++) {
-        totalDistance += this.points[i].position.distanceTo(this.points[i + 1].position);
+        const dist = this.points[i].position.distanceTo(this.points[i + 1].position);
+        console.log(`  Segment ${i}: ${dist.toFixed(2)} m`);
+        totalDistance += dist;
       }
 
+      console.log('  Total distance:', totalDistance.toFixed(2), 'm');
       return { distanceTotal: totalDistance };
     });
   }
@@ -93,9 +101,11 @@ export class DistanceMeasurement extends Measurement {
    * @private
    */
   _updateLines() {
+    console.log(`_updateLines() - points: ${this.points.length}`);
     if (!this.scene) return;
 
     if (!this.lines) {
+      console.log('  Creating new line');
       // Create new line only once
       const lineGeometry = new LineGeometry();
       const lineMaterial = new LineMaterial({
@@ -128,6 +138,13 @@ export class DistanceMeasurement extends Measurement {
         point.position.z - firstPos.z
       );
     }
+
+    console.log(`  Setting ${positions.length / 3} points in line geometry`);
+
+    // CRITICAL FIX: LineGeometry has a bug where _maxInstanceCount prevents adding more points
+    // Solution: delete _maxInstanceCount before calling setPositions to allow dynamic updates
+    // See: https://github.com/mrdoob/three.js/issues/27205
+    delete this.lines.geometry._maxInstanceCount;
 
     // Update geometry with relative positions
     this.lines.geometry.setPositions(positions);
