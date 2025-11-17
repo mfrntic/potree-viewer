@@ -1,0 +1,57 @@
+{
+  "name": "potree-viewer",
+  "version": "0.1.0",
+  "description": "Modern, framework-agnostic point cloud viewer built on potree-core and Three.js",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "npm test || echo 'No tests defined'"
+  },
+  "keywords": [
+    "potree",
+    "point-cloud",
+    "three.js",
+    "webgl",
+    "3d",
+    "visualization",
+    "lidar",
+    "point-cloud-viewer",
+    "measurements",
+    "esm"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/potree-viewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/potree-viewer/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/potree-viewer#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "peerDependencies": {
+    "three": "^0.160.0",
+    "potree-core": "^2.0.0"
+  },
+  "dependencies": {
+    "potree-core": "^2.0.11",
+    "three": "^0.160.1"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
