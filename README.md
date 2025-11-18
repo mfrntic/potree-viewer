@@ -2,6 +2,9 @@
 
 Modern, framework-agnostic JavaScript library for visualizing large-scale point clouds in web browsers. Built on [potree-core](https://github.com/tentone/potree-core) and [Three.js](https://threejs.org/).
 
+![Lion point cloud](./public/lion01.jpg)
+![Tree measurement](./public/tree01.jpg)
+
 ## Features
 
 - 🚀 **Modern ESM architecture** - Clean imports, no global variables
@@ -203,8 +206,8 @@ const toolbar = new Toolbar(viewer, {
    - Distance, Height, Angle, Radius, Volume
 4. **Clear Measurements** (X button) - Clears all measurements and exits measurement mode (disabled when no measurements exist)
 5. **Settings** dropdown with:
-   - Point Budget slider (100K - 5M points) - Controls maximum number of visible points
-   - Field of View slider (30° - 120°) - Controls camera perspective
+   - Point Budget slider (100K - 10M points) - Controls maximum number of visible points
+   - Field of View slider (20° - 100°) - Controls camera perspective
    - Point Size slider (0.1 - 5.0)
    - Point Shape (Square / Circle)
    - Point Size Type (Fixed / Attenuated / Adaptive)
@@ -298,6 +301,8 @@ Below is a complete list of all public methods available on the `PotreeViewer` i
 - `getScene()` - Get Three.js scene
 - `getCamera()` - Get Three.js camera
 - `getRenderer()` - Get Three.js WebGL renderer
+- `getConsole()` - Get PotreeViewerConsole instance (if attached)
+- `recenterOnObject()` - Set OrbitControls target to point cloud center
 
 **Lifecycle**
 - `dispose()` - Clean up and free all resources
@@ -418,6 +423,10 @@ const potree = viewer.getPotree();      // Potree instance
 const scene = viewer.getScene();        // Three.js scene
 const camera = viewer.getCamera();      // Three.js camera
 const renderer = viewer.getRenderer();  // Three.js renderer
+const console = viewer.getConsole();    // PotreeViewerConsole instance (if attached)
+
+// Recenter camera target on point cloud
+viewer.recenterOnObject();
 ```
 
 #### Cleanup
@@ -615,7 +624,9 @@ viewer.setMeasurementMode('angle');
   type: 'angle',
   points: [{ x, y, z }, { x, y, z }, { x, y, z }],
   result: {
-    angle: 45.5  // Angle in degrees (0-180)
+    angleDegrees: 45.5,   // Angle in degrees (0-180)
+    angleRadians: 0.794,  // Angle in radians
+    vertex: { x, y, z }   // Vertex position
   }
 }
 // Automatically finishes after 3 points
@@ -623,7 +634,7 @@ viewer.setMeasurementMode('angle');
 
 ### Radius Measurement
 
-Click 3 points to calculate circle radius that passes through all three points.
+Click 2 points to define circle radius: center point and edge point.
 
 ```javascript
 // Start measurement
@@ -633,17 +644,21 @@ viewer.setMeasurementMode('radius');
 {
   id: 'measurement-abc',
   type: 'radius',
-  points: [{ x, y, z }, { x, y, z }, { x, y, z }],
+  points: [{ x, y, z }, { x, y, z }],
   result: {
-    radius: 5.67  // Radius in meters
+    radius: 5.67,         // Radius in meters
+    diameter: 11.34,      // Diameter in meters
+    circumference: 35.61, // Circumference in meters
+    area: 101.09,         // Circle area in square meters
+    center: { x, y, z }   // Center position
   }
 }
-// Automatically finishes after 3 points
+// Automatically finishes after 2 points
 ```
 
 ### Volume Measurement
 
-Click multiple points to define a polygon base, then add a height point. Press **Enter** to finish or **ESC** to cancel.
+Click 2 points to define sphere volume: center point and radius point. Calculates the volume of point cloud data within the sphere using voxel grid method.
 
 ```javascript
 // Start measurement
@@ -653,19 +668,27 @@ viewer.setMeasurementMode('volume');
 {
   id: 'measurement-def',
   type: 'volume',
-  points: [{ x, y, z }, ...],
+  points: [{ x, y, z }, { x, y, z }],
   result: {
-    area: 234.56,        // Base area in square meters
-    volume: 123.45,      // Volume in cubic meters
-    height: 0.53         // Height in meters
+    volume: 123.45,       // Volume in cubic meters (calculated from point cloud data within sphere)
+    radius: 3.14,         // Average radius in meters
+    radii: {              // Ellipsoid radii (rx, ry, rz)
+      rx: 3.14,
+      ry: 3.14,
+      rz: 3.14
+    },
+    surfaceArea: 123.97,  // Sphere surface area in square meters
+    center: { x, y, z },  // Center position
+    pointCount: 12345,    // Number of points within sphere
+    voxelSize: 0.1        // Voxel size used for volume calculation
   }
 }
-// Finished when Enter is pressed
+// Automatically finishes after 2 points
 ```
 
 **Keyboard shortcuts for measurements:**
 - **ESC** - Cancel current measurement and exit measurement mode
-- **Enter** - Finish current measurement (for distance and volume)
+- **Enter** - Finish current measurement (for distance measurements only; other types auto-finish)
 - **Right mouse button** - Rotate camera while in measurement mode
 
 ## Framework Integration
