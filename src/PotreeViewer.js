@@ -15,7 +15,7 @@ export class PotreeViewer extends EventEmitter {
 
     // Merge and validate configuration
     this.config = mergeConfig(options);
-    validateConfig(this.config);
+    validateConfig(this.config);    
 
     // Internal state
     this.container = this.config.container;

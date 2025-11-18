@@ -32,20 +32,20 @@
     // Create viewer
     const viewer = new PotreeViewer({
       container: document.getElementById('container'),
-      pointCloudUrl: '/7_1/metadata.json',
-      pointCloudName: '7_1',
-      description: 'Lion Takanawa Point Cloud',
+      pointCloudUrl: '/spruce/metadata.json',
+      pointCloudName: 'spruce',
+      description: 'Spruce Point Cloud',
       language: 'hr',
       pointBudget: 1_000_000,
       fov: 80,
-      initialView: 'right',
+      initialView: 'front',
       material: {
         size: 0.8,
         minSize: 0.4,
         pointSizeType: 'FIXED',
         shape: 'SQUARE',
       },
-      background: 'black',
+      background: 'white',
       autoFitOnLoad: true,
 
       // Callbacks

@@ -4,6 +4,7 @@ Modern, framework-agnostic JavaScript library for visualizing large-scale point 
 
 ![Lion point cloud](./public/lion01.jpg)
 ![Tree measurement](./public/tree01.jpg)
+![White background](./public/spruce01.jpg)
 
 ## Features
 
@@ -84,7 +85,6 @@ const viewer = new PotreeViewer({
   pointCloudUrl: '/pointcloud/metadata.json',
   pointCloudName: 'Forest Scan',
   description: 'LiDAR scan of forest area',
-  language: 'en',
   pointBudget: 1_000_000,
   fov: 80,
   initialView: 'right',
@@ -153,7 +153,6 @@ const viewer = new PotreeViewer({
   description: string,                 // Description text
 
   // Viewer settings
-  language: 'en' | 'hr',               // UI language (default: 'en')
   pointBudget: number,                 // Max visible points (default: 1,000,000)
   fov: number,                         // Field of view in degrees (default: 80)
 

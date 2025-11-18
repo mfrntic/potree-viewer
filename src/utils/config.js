@@ -8,7 +8,6 @@ export const DEFAULT_CONFIG = {
   description: '',
 
   // Viewer settings
-  language: 'en',
   pointBudget: 1_000_000,
   fov: 80,
   edlEnabled: false, // Reserved for future custom implementation
