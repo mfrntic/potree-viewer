@@ -29,41 +29,63 @@
   <script type="module">
     import { PotreeViewer, Toolbar, PotreeViewerConsole, PointColorType } from './src/index.js';
 
-    // Create viewer
-    const viewer = new PotreeViewer({
-      container: document.getElementById('container'),
-      pointCloudUrl: '/spruce/metadata.json',
-      pointCloudName: 'spruce',
-      description: 'Spruce Point Cloud',
-      language: 'hr',
-      pointBudget: 1_000_000,
-      fov: 80,
-      initialView: 'front',
-      material: {
-        size: 0.8,
-        minSize: 0.4,
-        pointSizeType: 'FIXED',
-        shape: 'SQUARE',
-      },
-      background: 'white',
-      autoFitOnLoad: true,
+    // Base URL for the point cloud data
+    const baseUrl = 'https://potreestorage.blob.core.windows.net/converted/742ff0a5-e5c9-44a5-8348-fc4fba7f4f4a';
 
-      // Callbacks
-      onReady: (viewerInstance) => {
-        console.log('Viewer ready!', viewerInstance);
-      },
+    // Load project metadata and initialize viewer
+    async function initViewer() {
+      let projectName = 'Point Cloud';
+      let description = 'Point Cloud Data';
 
-      onPointCloudLoaded: (pointCloud) => {
-        console.log('Point cloud loaded:', pointCloud);
-
-        // Set color type AFTER point cloud is loaded
-        viewer.setPointColorType(PointColorType.RGB);
-      },
-
-      onError: (error) => {
-        console.error('Viewer error:', error);
+      try {
+        const response = await fetch(`${baseUrl}/project-metadata.json`);
+        const metadata = await response.json();
+        console.log('Project Metadata:', metadata);
+        
+        // Extract name and description from metadata
+        projectName = metadata.name || metadata.projectName || projectName;
+        description = metadata.description || `${projectName} Point Cloud`;
+      } catch (error) {
+        console.warn('Could not load project metadata, using defaults:', error);
       }
-    });
+
+      // Create viewer with metadata
+      const viewer = new PotreeViewer({
+        container: document.getElementById('container'),
+        pointCloudUrl: `${baseUrl}/metadata.json`,
+        pointCloudName: projectName,
+        description: description,
+        pointBudget: 1_000_000,
+        fov: 80,
+        initialView: 'front',
+        material: {
+          size: 0.8,
+          minSize: 0.4,
+          pointSizeType: 'FIXED',
+          shape: 'SQUARE',
+        },
+        background: 'white',
+        autoFitOnLoad: true,
+
+        onReady: (viewerInstance) => {
+          console.log('Viewer ready!', viewerInstance);
+        },
+
+        onPointCloudLoaded: (pointCloud) => {
+          console.log('Point cloud loaded:', pointCloud);
+          viewer.setPointColorType(PointColorType.RGB);
+        },
+
+        onError: (error) => {
+          console.error('Viewer error:', error);
+        }
+      });
+
+      return viewer;
+    }
+
+    // Initialize and expose to window
+    const viewer = await initViewer();
 
     // Create toolbar with default SVG icons
     const toolbar = new Toolbar(viewer, {
