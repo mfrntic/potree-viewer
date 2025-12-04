@@ -61,6 +61,42 @@ export class PotreeViewer extends EventEmitter {
   }
 
   /**
+   * Log georeferencing information to console
+   * @private
+   */
+  _logGeoInfo() {
+    if (!this._lastLoadedMetadata) return;
+
+    const isGeo = this.isGeoreferenced();
+    const projection = this.getProjection();
+    const offset = this.getOffset();
+    const center = this.getCenter();
+
+    if (isGeo) {
+      this._log('🌍 Point cloud is GEOREFERENCED', 'info');
+      
+      if (projection) {
+        this._log(`   Projection: ${projection}`, 'info');
+      } else {
+        this._log('   Projection: Not specified (coordinates suggest UTM/projected)', 'info');
+      }
+      
+      if (offset) {
+        this._log(`   Origin: X=${offset.x.toFixed(2)}, Y=${offset.y.toFixed(2)}, Z=${offset.z.toFixed(2)}`, 'info');
+      }
+      
+      if (center) {
+        this._log(`   Center: X=${center.x.toFixed(2)}, Y=${center.y.toFixed(2)}, Z=${center.z.toFixed(2)}`, 'info');
+      }
+    } else {
+      this._log('📐 Point cloud is in LOCAL coordinates (not georeferenced)', 'info');
+      if (offset) {
+        this._log(`   Local origin: X=${offset.x.toFixed(2)}, Y=${offset.y.toFixed(2)}, Z=${offset.z.toFixed(2)}`, 'info');
+      }
+    }
+  }
+
+  /**
    * Initialize Three.js scene, camera, renderer, and Potree instance
    * @private
    */
@@ -516,6 +552,9 @@ export class PotreeViewer extends EventEmitter {
       // DON'T force any specific color type here - let potree-core use its default
       // User can change it later with setPointColorType()
 
+      // Log georeferencing info to console
+      this._logGeoInfo();
+
       // Emit event
       this.emit('pointcloud-loaded', pco);
       if (typeof this.config.onPointCloudLoaded === 'function') {
@@ -593,6 +632,121 @@ export class PotreeViewer extends EventEmitter {
   getPointBudget() {
     return this.potree ? this.potree.pointBudget : this.config.pointBudget;
   }
+
+  // ===== GEOREFERENCING API =====
+
+  /**
+   * Check if the loaded point cloud is georeferenced
+   * A point cloud is considered georeferenced if it has either:
+   * - A projection defined, OR
+   * - Offset coordinates that appear to be real-world coordinates (UTM/projected)
+   * @returns {boolean} True if georeferenced
+   */
+  isGeoreferenced() {
+    if (!this._lastLoadedMetadata) {
+      return false;
+    }
+
+    const metadata = this._lastLoadedMetadata;
+    
+    // Has explicit projection
+    if (metadata.projection && metadata.projection.trim() !== '') {
+      return true;
+    }
+
+    // Check if offset looks like UTM/projected coordinates
+    // UTM coordinates are typically large numbers (e.g., X: 200,000-800,000, Y: 0-10,000,000)
+    if (metadata.offset && Array.isArray(metadata.offset)) {
+      const [x, y] = metadata.offset;
+      // Consider georeferenced if X or Y coordinate is larger than 1000
+      // Local scans typically have coordinates near 0
+      if (Math.abs(x) > 1000 || Math.abs(y) > 1000) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the projection/CRS of the point cloud
+   * @returns {string|null} Projection string (e.g., "EPSG:3765") or null if not defined
+   */
+  getProjection() {
+    if (!this._lastLoadedMetadata) {
+      return null;
+    }
+
+    const projection = this._lastLoadedMetadata.projection;
+    return (projection && projection.trim() !== '') ? projection : null;
+  }
+
+  /**
+   * Get the offset (origin) coordinates of the point cloud
+   * These are the real-world coordinates of the point cloud origin
+   * @returns {{x: number, y: number, z: number}|null} Offset coordinates or null
+   */
+  getOffset() {
+    if (!this._lastLoadedMetadata || !this._lastLoadedMetadata.offset) {
+      return null;
+    }
+
+    const offset = this._lastLoadedMetadata.offset;
+    return {
+      x: offset[0],
+      y: offset[1],
+      z: offset[2]
+    };
+  }
+
+  /**
+   * Get the bounding box in real-world coordinates
+   * @returns {{min: {x, y, z}, max: {x, y, z}}|null} Bounding box or null
+   */
+  getBoundingBox() {
+    if (!this._lastLoadedMetadata || !this._lastLoadedMetadata.boundingBox) {
+      return null;
+    }
+
+    const bbox = this._lastLoadedMetadata.boundingBox;
+    return {
+      min: { x: bbox.min[0], y: bbox.min[1], z: bbox.min[2] },
+      max: { x: bbox.max[0], y: bbox.max[1], z: bbox.max[2] }
+    };
+  }
+
+  /**
+   * Get the center coordinates of the point cloud in real-world coordinates
+   * @returns {{x: number, y: number, z: number}|null} Center coordinates or null
+   */
+  getCenter() {
+    const bbox = this.getBoundingBox();
+    if (!bbox) {
+      return null;
+    }
+
+    return {
+      x: (bbox.min.x + bbox.max.x) / 2,
+      y: (bbox.min.y + bbox.max.y) / 2,
+      z: (bbox.min.z + bbox.max.z) / 2
+    };
+  }
+
+  /**
+   * Get comprehensive georeferencing information
+   * @returns {Object} Object with all georeferencing info
+   */
+  getGeoInfo() {
+    return {
+      isGeoreferenced: this.isGeoreferenced(),
+      projection: this.getProjection(),
+      offset: this.getOffset(),
+      boundingBox: this.getBoundingBox(),
+      center: this.getCenter()
+    };
+  }
+
+  // ===== POINT CLOUD SETTINGS =====
 
   /**
    * Set point budget (number of visible points)
