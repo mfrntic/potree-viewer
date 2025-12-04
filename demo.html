@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="hr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,6 +24,7 @@
     }
   </style>
 </head>
+
 <body>
   <div id="container"></div>
 
@@ -30,8 +32,8 @@
     import { PotreeViewer, Toolbar, PotreeViewerConsole, PointColorType } from './src/index.js';
 
     // Base URL for the point cloud data
-    const baseUrl = 'https://potreestorage.blob.core.windows.net/converted/742ff0a5-e5c9-44a5-8348-fc4fba7f4f4a';
-
+    //const baseUrl = 'https://potreestorage.blob.core.windows.net/converted/742ff0a5-e5c9-44a5-8348-fc4fba7f4f4a';
+    const baseUrl = "public/Arb_kapelica";
     // Load project metadata and initialize viewer
     async function initViewer() {
       let projectName = 'Point Cloud';
@@ -41,7 +43,7 @@
         const response = await fetch(`${baseUrl}/project-metadata.json`);
         const metadata = await response.json();
         console.log('Project Metadata:', metadata);
-        
+
         // Extract name and description from metadata
         projectName = metadata.name || metadata.projectName || projectName;
         description = metadata.description || `${projectName} Point Cloud`;
@@ -55,7 +57,7 @@
         pointCloudUrl: `${baseUrl}/metadata.json`,
         pointCloudName: projectName,
         description: description,
-        pointBudget: 1_000_000,
+        // pointBudget: 'auto' is default - will use 70% of total points
         fov: 80,
         initialView: 'front',
         material: {
@@ -113,7 +115,7 @@
     window.viewer = viewer;
     window.toolbar = toolbar;
     window.viewerConsole = viewerConsole;
- 
+
     // Clean up on page unload
     window.addEventListener('beforeunload', () => {
       toolbar.dispose();
@@ -122,4 +124,5 @@
     });
   </script>
 </body>
+
 </html>

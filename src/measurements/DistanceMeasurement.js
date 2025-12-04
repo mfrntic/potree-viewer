@@ -15,6 +15,31 @@ export class DistanceMeasurement extends Measurement {
   }
 
   /**
+   * Override addPoint to log segment distance
+   * @param {Object} point - Point object {position: Vector3}
+   */
+  addPoint(point) {
+    // Call parent implementation
+    super.addPoint(point);
+    
+    // Log segment distance when we have at least 2 points
+    if (this.points.length >= 2) {
+      const p1 = this.points[this.points.length - 2].position;
+      const p2 = this.points[this.points.length - 1].position;
+      const segmentDistance = p1.distanceTo(p2);
+      const result = this.getResult();
+      
+      if (this.points.length === 2) {
+        // First segment - just show distance
+        this._log(`Distance: ${segmentDistance.toFixed(2)} m`, 'info');
+      } else {
+        // Additional segments - show segment and total
+        this._log(`Segment: ${segmentDistance.toFixed(2)} m | Total: ${result.distanceTotal.toFixed(2)} m`, 'info');
+      }
+    }
+  }
+
+  /**
    * Update the measurement visualization (called every frame like Potree)
    */
   update() {

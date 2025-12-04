@@ -70,7 +70,7 @@ export class Toolbar {
       { id: 'distance', label: 'Distance', icon: ICONS.ruler },
       { id: 'height', label: 'Height', icon: ICONS.moveVertical },
       { id: 'angle', label: 'Angle', icon: ICONS.triangle },
-      { id: 'radius', label: 'Radius', icon: ICONS.circleDot },
+      { id: 'radius', label: 'Radius', icon: ICONS.circleDot, requiresTopView: true },
       { id: 'volume', label: 'Volume', icon: ICONS.box },
     ];
 
@@ -357,7 +357,12 @@ export class Toolbar {
 
       slider.oninput = (e) => {
         const value = parseFloat(e.target.value);
-        valueSpan.textContent = value.toFixed(step < 1 ? 2 : 0);
+        // Use toLocaleString for large numbers (like point budget), toFixed for decimals
+        if (step >= 1000) {
+          valueSpan.textContent = Math.round(value).toLocaleString();
+        } else {
+          valueSpan.textContent = value.toFixed(step < 1 ? 2 : 0);
+        }
         onChange(value);
       };
 
@@ -436,8 +441,13 @@ export class Toolbar {
       else if (material.pointSizeType === 2) currentSizeType = 'adaptive';
     }
 
-    // Point Budget slider
-    const budgetControl = createSlider('Point Budget', 100000, 10000000, 100000, this.viewer.config.pointBudget, (value) => {
+    // Point Budget slider - use actual point budget from potree instance
+    const currentBudget = this.viewer.getPointBudget();
+    const totalPoints = this.viewer.getTotalPoints() || 10_000_000;
+    // Round max up to next 100,000 for cleaner slider
+    const maxBudget = Math.ceil(Math.max(totalPoints, currentBudget, 1_000_000) / 100_000) * 100_000;
+    
+    const budgetControl = createSlider('Point Budget', 100000, maxBudget, 100000, currentBudget, (value) => {
       this.viewer.setPointBudget(value);
     });
     menu.appendChild(budgetControl.container);
@@ -464,10 +474,11 @@ export class Toolbar {
     menu.appendChild(shapeControl.container);
 
     // Point Size Type dropdown
+    // Note: Adaptive mode may not work optimally with potree-core
     const sizeTypeControl = createSelect('Point Size Type', [
       { value: 'fixed', label: 'Fixed' },
       { value: 'attenuated', label: 'Attenuated' },
-      { value: 'adaptive', label: 'Adaptive' }
+      { value: 'adaptive', label: 'Adaptive (experimental)' }
     ], currentSizeType, (value) => {
       this.viewer.setPointSizeType(value);
     });
@@ -507,9 +518,19 @@ export class Toolbar {
           sizeTypeControl.select.value = sizeTypeValue;
         }
 
-        // Update budget slider
-        budgetControl.slider.value = this.viewer.config.pointBudget;
-        budgetControl.valueSpan.textContent = this.viewer.config.pointBudget.toLocaleString();
+        // Update budget slider with actual value from potree
+        const actualBudget = this.viewer.getPointBudget();
+        const totalPts = this.viewer.getTotalPoints() || 10_000_000;
+        // Round max up to next 100,000 for cleaner slider
+        const maxBudgetValue = Math.ceil(Math.max(totalPts, actualBudget, 1_000_000) / 100_000) * 100_000;
+        
+        // Update max attribute BEFORE setting value (important for range inputs)
+        budgetControl.slider.setAttribute('max', maxBudgetValue);
+        budgetControl.slider.max = maxBudgetValue;
+        budgetControl.slider.value = actualBudget;
+        budgetControl.valueSpan.textContent = actualBudget.toLocaleString();
+        
+        console.log('[Toolbar] Budget slider updated:', { actualBudget, totalPts, maxBudgetValue });
 
         // Update FOV slider
         fovControl.slider.value = this.viewer.config.fov;
@@ -816,6 +837,69 @@ export class Toolbar {
     this.viewer.on('background-changed', (background) => {
       this._updateBackgroundSelection(background);
     });
+
+    // Show error message for measurement errors (e.g., radius requires top view)
+    this.viewer.on('measurement-error', (error) => {
+      this._showTemporaryMessage(error.message, 'error');
+    });
+
+    // Show warning message for measurement warnings
+    this.viewer.on('measurement-warning', (warning) => {
+      this._showTemporaryMessage(warning.message, 'warning');
+    });
+  }
+
+  /**
+   * Show a temporary message to the user
+   * @param {string} message - Message to display
+   * @param {string} type - 'error' or 'warning'
+   * @private
+   */
+  _showTemporaryMessage(message, type = 'error') {
+    const bgColor = type === 'warning' 
+      ? 'rgba(255, 180, 50, 0.9)'  // Orange/yellow for warning
+      : 'rgba(255, 100, 100, 0.9)'; // Red for error
+    
+    // Create message element
+    const msgEl = document.createElement('div');
+    msgEl.textContent = message;
+    msgEl.style.cssText = `
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: ${bgColor};
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 10000;
+      pointer-events: none;
+      animation: fadeInOut 3s ease-in-out forwards;
+    `;
+
+    // Add animation keyframes if not exists
+    if (!document.getElementById('temp-message-styles')) {
+      const style = document.createElement('style');
+      style.id = 'temp-message-styles';
+      style.textContent = `
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+          15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    this.viewer.container.appendChild(msgEl);
+
+    // Remove after animation
+    setTimeout(() => {
+      msgEl.remove();
+    }, 3000);
   }
 
   /**
@@ -861,18 +945,40 @@ export class Toolbar {
    * @private
    */
   _updateSettingsDropdown() {
-    if (!this.settingsDropdown || !this.settingsDropdown.sizeControl) {
+    console.log('[Toolbar] _updateSettingsDropdown called, settingsDropdown:', this.settingsDropdown);
+    
+    if (!this.settingsDropdown) {
+      console.log('[Toolbar] settingsDropdown not yet created, skipping update');
       return;
     }
 
     // Get current material
     const material = this.viewer.pointClouds?.[0]?.material;
-    if (!material) {
-      return;
+    
+    // Update size slider display (but not the actual slider value yet - will update when opened)
+    if (this.settingsDropdown.sizeControl && material) {
+      this.settingsDropdown.sizeControl.valueSpan.textContent = material.size.toFixed(1);
     }
 
-    // Update size slider display (but not the actual slider value yet - will update when opened)
-    this.settingsDropdown.sizeControl.valueSpan.textContent = material.size.toFixed(1);
+    // Update budget slider with actual values from loaded point cloud
+    if (this.settingsDropdown.budgetControl) {
+      const actualBudget = this.viewer.getPointBudget();
+      const totalPts = this.viewer.getTotalPoints() || 10_000_000;
+      // Round max up to next 100,000 for cleaner slider
+      const maxBudgetValue = Math.ceil(Math.max(totalPts, actualBudget, 1_000_000) / 100_000) * 100_000;
+      
+      console.log('[Toolbar] Updating budget slider:', { actualBudget, totalPts, maxBudgetValue, currentSliderValue: this.settingsDropdown.budgetControl.slider.value });
+      
+      // Update max attribute and value
+      this.settingsDropdown.budgetControl.slider.setAttribute('max', maxBudgetValue);
+      this.settingsDropdown.budgetControl.slider.max = maxBudgetValue;
+      this.settingsDropdown.budgetControl.slider.value = actualBudget;
+      this.settingsDropdown.budgetControl.valueSpan.textContent = actualBudget.toLocaleString();
+      
+      console.log('[Toolbar] Budget slider updated on pointcloud-loaded:', { actualBudget, totalPts, maxBudgetValue });
+    } else {
+      console.log('[Toolbar] budgetControl not found in settingsDropdown');
+    }
   }
 
   /**

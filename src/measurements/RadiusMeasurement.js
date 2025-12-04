@@ -18,6 +18,9 @@ export class RadiusMeasurement extends Measurement {
   /**
    * Add a point to the measurement
    * @param {Object} point - Point object {position: Vector3}
+   * 
+   * NOTE: Radius measurement works in horizontal plane (XZ) only.
+   * The second point is automatically projected to the same Y level as the center.
    */
   addPoint(point) {
     if (this.points.length >= this.maxPoints) {
@@ -25,13 +28,28 @@ export class RadiusMeasurement extends Measurement {
       return;
     }
 
-    // Use base class addPoint which handles wrapping Vector3 in object
-    super.addPoint(point);
+    // If this is the second point, project it to the same Y level as center (horizontal plane)
+    if (this.points.length === 1) {
+      const centerY = this.points[0].position.y;
+      const projectedPosition = point.position.clone();
+      projectedPosition.y = centerY; // Project to horizontal plane
+      
+      // Create a new point object with projected position
+      const projectedPoint = { position: projectedPosition };
+      super.addPoint(projectedPoint);
+    } else {
+      // First point (center) - use as-is
+      super.addPoint(point);
+    }
 
     // When second point is added, create all geometry ONCE
     if (this.points.length === this.maxPoints) {
       this._createCircleGeometry();
       this.finish();
+      
+      // Log result to console
+      const result = this.getResult();
+      this._log(`Radius: ${result.radius.toFixed(2)} m | Circumference: ${result.circumference.toFixed(2)} m | Area: ${result.area.toFixed(2)} m²`, 'info');
     }
   }
 
@@ -54,6 +72,7 @@ export class RadiusMeasurement extends Measurement {
 
   /**
    * Get the measurement result (cached to prevent jitter)
+   * NOTE: Radius is calculated in horizontal plane (XZ) only
    */
   getResult() {
     return this._getCachedResult(() => {
@@ -64,7 +83,11 @@ export class RadiusMeasurement extends Measurement {
       const center = this.points[0].position;
       const edge = this.points[1].position;
 
-      const radius = center.distanceTo(edge);
+      // Calculate horizontal radius (XZ plane only, ignoring Y difference)
+      const dx = edge.x - center.x;
+      const dz = edge.z - center.z;
+      const radius = Math.sqrt(dx * dx + dz * dz);
+      
       const diameter = radius * 2;
       const circumference = 2 * Math.PI * radius;
       const area = Math.PI * radius * radius;
@@ -178,8 +201,8 @@ export class RadiusMeasurement extends Measurement {
 
     const center = this.points[0].position;
     const edge = this.points[1].position;
-    const radius = center.distanceTo(edge);
     const result = this.getResult();
+    const radius = result.radius; // Use horizontal radius from getResult()
 
     // Create circle geometry ONCE - using THREE.CircleGeometry like Potree
     // CircleGeometry creates a circle in XY plane by default
@@ -205,19 +228,14 @@ export class RadiusMeasurement extends Measurement {
     circle.renderOrder = 1;
     circle.userData.isCircle = true;
 
-    // Position at center and scale by radius
+    // Position at center and scale by horizontal radius
     circle.position.copy(center);
     circle.scale.set(radius, radius, radius);
 
     // Orient circle to lie flat on the ground (XZ plane)
     // CircleGeometry is in XY plane, rotate -90° around X to make it horizontal
+    // NO additional Y rotation - circle should be perfectly horizontal
     circle.rotation.x = -Math.PI / 2;
-
-    // Then rotate around Y axis to align with the radius direction in the horizontal plane
-    // This makes the circle lie flat on the ground, oriented toward the radius direction
-    const radiusVec = new THREE.Vector3().subVectors(edge, center);
-    const angleY = Math.atan2(radiusVec.x, radiusVec.z);
-    circle.rotation.y = angleY;
 
     this.scene.add(circle);
     this.labels.push(circle);
@@ -237,13 +255,23 @@ export class RadiusMeasurement extends Measurement {
 
     // Create circumference label
     const circumLabel = new TextSprite(`C: ${result.circumference.toFixed(2)} m`);
-    circumLabel.position.set(center.x, center.y + radius + 0.5, center.z);
+    circumLabel.position.set(center.x, center.y + radius * 0.7, center.z + radius * 0.7);
     circumLabel.renderOrder = 3;
     circumLabel.backgroundColor = 'rgba(255, 0, 255, 0.7)';
     circumLabel.scale.multiplyScalar(0.3);
     circumLabel.userData.isCircumLabel = true;
     this.scene.add(circumLabel);
     this.labels.push(circumLabel);
+
+    // Create area label
+    const areaLabel = new TextSprite(`A: ${result.area.toFixed(2)} m²`);
+    areaLabel.position.set(center.x, center.y + radius * 0.7, center.z - radius * 0.7);
+    areaLabel.renderOrder = 3;
+    areaLabel.backgroundColor = 'rgba(255, 0, 255, 0.7)';
+    areaLabel.scale.multiplyScalar(0.3);
+    areaLabel.userData.isAreaLabel = true;
+    this.scene.add(areaLabel);
+    this.labels.push(areaLabel);
   }
 
   /**
@@ -257,7 +285,7 @@ export class RadiusMeasurement extends Measurement {
     const center = this.points[0].position;
     const edge = this.points[1].position;
     const result = this.getResult();
-    const radius = center.distanceTo(edge);
+    const radius = result.radius; // Use horizontal radius
     const midpoint = new THREE.Vector3().addVectors(center, edge).multiplyScalar(0.5);
 
     // Find or create radius label
@@ -290,6 +318,22 @@ export class RadiusMeasurement extends Measurement {
     }
 
     circumLabel.text = `C: ${result.circumference.toFixed(2)} m`;
-    circumLabel.position.set(center.x, center.y + radius + 0.5, center.z);
+    circumLabel.position.set(center.x, center.y + radius * 0.7, center.z + radius * 0.7);
+
+    // Find or create area label
+    let areaLabel = this.labels.find(l => l.material && l.material.map && l.userData && l.userData.isAreaLabel);
+
+    if (!areaLabel) {
+      areaLabel = new TextSprite(`A: ${result.area.toFixed(2)} m²`);
+      areaLabel.renderOrder = 3;
+      areaLabel.backgroundColor = 'rgba(255, 0, 255, 0.7)';
+      areaLabel.scale.multiplyScalar(0.3);
+      areaLabel.userData.isAreaLabel = true;
+      this.scene.add(areaLabel);
+      this.labels.push(areaLabel);
+    }
+
+    areaLabel.text = `A: ${result.area.toFixed(2)} m²`;
+    areaLabel.position.set(center.x, center.y + radius * 0.7, center.z - radius * 0.7);
   }
 }

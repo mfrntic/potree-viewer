@@ -8,7 +8,7 @@ export const DEFAULT_CONFIG = {
   description: '',
 
   // Viewer settings
-  pointBudget: 1_000_000,
+  pointBudget: 'auto', // 'auto' = use total points from metadata, or set a specific number
   fov: 80,
   edlEnabled: false, // Reserved for future custom implementation
 
@@ -80,8 +80,9 @@ export function validateConfig(config) {
     throw new Error('PotreeViewer: "pointCloudUrl" must be a string');
   }
 
-  if (typeof config.pointBudget !== 'number' || config.pointBudget <= 0) {
-    throw new Error('PotreeViewer: "pointBudget" must be a positive number');
+  // pointBudget can be 'auto' or a positive number
+  if (config.pointBudget !== 'auto' && (typeof config.pointBudget !== 'number' || config.pointBudget <= 0)) {
+    throw new Error('PotreeViewer: "pointBudget" must be "auto" or a positive number');
   }
 
   if (typeof config.fov !== 'number' || config.fov <= 0 || config.fov >= 180) {

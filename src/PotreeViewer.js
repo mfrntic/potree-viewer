@@ -136,8 +136,10 @@ export class PotreeViewer extends EventEmitter {
 
       // Create Potree instance
       this.potree = new Potree();
-      this.potree.pointBudget = this.config.pointBudget;
-      this._log(`Potree instance created: pointBudget=${this.config.pointBudget.toLocaleString()}`, 'debug');
+      // Set initial point budget (will be auto-adjusted when point cloud loads if set to 'auto')
+      const initialBudget = this.config.pointBudget === 'auto' ? 1_000_000 : this.config.pointBudget;
+      this.potree.pointBudget = initialBudget;
+      this._log(`Potree instance created: pointBudget=${initialBudget.toLocaleString()}${this.config.pointBudget === 'auto' ? ' (auto-adjust enabled)' : ''}`, 'debug');
 
       // Create measurement manager
       this.measurementManager = new MeasurementManager(this);
@@ -378,6 +380,43 @@ export class PotreeViewer extends EventEmitter {
 
       this._log(`Parsed URL - baseUrl: "${baseUrl}", filename: "${filename}"`, 'debug');
 
+      // Fetch metadata to get total point count and auto-adjust point budget
+      try {
+        const metadataResponse = await fetch(url);
+        const metadata = await metadataResponse.json();
+        
+        console.log('[PotreeViewer] Metadata loaded:', metadata);
+        console.log('[PotreeViewer] config.pointBudget:', this.config.pointBudget);
+        
+        if (metadata.points) {
+          const totalPoints = metadata.points;
+          this._log(`Point cloud has ${totalPoints.toLocaleString()} points`, 'info');
+          
+          // Store metadata for later access
+          this._lastLoadedMetadata = metadata;
+          
+          // Auto-adjust point budget based on config
+          console.log('[PotreeViewer] Checking auto mode:', this.config.pointBudget === 'auto', typeof this.config.pointBudget);
+          
+          if (this.config.pointBudget === 'auto') {
+            // Auto mode: set budget to 70% of total points (good balance of quality vs performance)
+            const autoBudget = Math.round(totalPoints * 0.7);
+            this.potree.pointBudget = autoBudget;
+            console.log('[PotreeViewer] AUTO MODE - Set budget to:', autoBudget);
+            this._log(`Point budget set to ${autoBudget.toLocaleString()} (70% of ${totalPoints.toLocaleString()} points)`, 'info');
+          } else if (this.potree.pointBudget < totalPoints) {
+            // Manual mode but budget is lower than total points - keep manual setting
+            console.log('[PotreeViewer] MANUAL MODE - Keeping budget at:', this.potree.pointBudget);
+            this._log(`Point budget kept at ${this.potree.pointBudget.toLocaleString()} (manual setting)`, 'info');
+          }
+          
+          console.log('[PotreeViewer] Final pointBudget:', this.potree.pointBudget);
+        }
+      } catch (metadataError) {
+        console.error('[PotreeViewer] Metadata fetch error:', metadataError);
+        this._log(`Could not pre-fetch metadata: ${metadataError.message}`, 'warning');
+      }
+
       // Load point cloud using potree-core API
       // The second parameter is the base URL string
       const pco = await this.potree.loadPointCloud(filename, baseUrl);
@@ -526,6 +565,33 @@ export class PotreeViewer extends EventEmitter {
       size: material.size,
       minSize: material.minSize,
     });
+  }
+
+  /**
+   * Get metadata of the last loaded point cloud
+   * @returns {Object|null} Metadata object or null if not loaded
+   */
+  getPointCloudMetadata() {
+    return this._lastLoadedMetadata || null;
+  }
+
+  /**
+   * Get total number of points in loaded point cloud
+   * @returns {number|null} Total points or null if not loaded
+   */
+  getTotalPoints() {
+    if (this._lastLoadedMetadata && this._lastLoadedMetadata.points) {
+      return this._lastLoadedMetadata.points;
+    }
+    return null;
+  }
+
+  /**
+   * Get current point budget
+   * @returns {number} Current point budget
+   */
+  getPointBudget() {
+    return this.potree ? this.potree.pointBudget : this.config.pointBudget;
   }
 
   /**
@@ -917,6 +983,10 @@ export class PotreeViewer extends EventEmitter {
   /**
    * Set point size type
    * @param {string} sizeType - 'fixed', 'attenuated', or 'adaptive'
+   * 
+   * Note: 'adaptive' mode may not work optimally with potree-core as it requires
+   * additional LOD texture data that may not be properly initialized.
+   * For best results, use 'fixed' or 'attenuated'.
    */
   setPointSizeType(sizeType) {
     const PointSizeType = { FIXED: 0, ATTENUATED: 1, ADAPTIVE: 2 };

@@ -97,6 +97,18 @@ export class Measurement {
   }
 
   /**
+   * Log message to viewer console (if available)
+   * @protected
+   */
+  _log(message, type = 'info') {
+    // Try to get viewer from scene userData
+    const viewer = this.scene?.userData?.viewer;
+    if (viewer && viewer._console) {
+      viewer._console.log(message, type);
+    }
+  }
+
+  /**
    * Update line positions to follow point positions
    * This ensures lines always connect the marker points correctly
    * Call this in the render loop to keep lines synced with points

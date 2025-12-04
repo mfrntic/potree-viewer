@@ -37,6 +37,29 @@ export class MeasurementManager {
   }
 
   /**
+   * Check if current camera view is suitable for radius measurement (Top/Bottom view)
+   * @returns {boolean} True if view is approximately top or bottom
+   * @private
+   */
+  _isTopOrBottomView() {
+    if (!this.viewer || !this.viewer.camera || !this.viewer.controls) {
+      return false;
+    }
+
+    // Get camera direction (from camera to target)
+    const cameraDir = new THREE.Vector3();
+    cameraDir.subVectors(this.viewer.controls.target, this.viewer.camera.position).normalize();
+
+    // Check if camera is looking mostly up or down (Y axis)
+    // Dot product with Y axis - if close to 1 or -1, it's top/bottom view
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const alignment = Math.abs(cameraDir.dot(worldUp));
+
+    // Allow ~30° tolerance from perfect top/bottom (cos(30°) ≈ 0.866)
+    return alignment > 0.85;
+  }
+
+  /**
    * Set measurement mode
    * @param {string} mode - Measurement mode ('none', 'distance', 'height', 'angle', 'radius', 'volume')
    */
@@ -44,6 +67,16 @@ export class MeasurementManager {
     const validModes = ['none', 'distance', 'height', 'angle', 'radius', 'volume'];
     if (!validModes.includes(mode)) {
       throw new Error(`Invalid measurement mode: ${mode}. Must be one of: ${validModes.join(', ')}`);
+    }
+
+    // Radius measurement works best in Top or Bottom view - show warning if not
+    if (mode === 'radius' && !this._isTopOrBottomView()) {
+      this._log('Radius measurement works best in Top or Bottom view for accurate results.', 'warning');
+      this.viewer.emit('measurement-warning', {
+        type: 'radius',
+        message: 'For accurate results, use Top or Bottom view'
+      });
+      // Continue anyway - don't block the measurement
     }
 
     this._log(`Measurement mode: ${mode}`, 'info');
