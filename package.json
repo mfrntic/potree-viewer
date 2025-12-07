@@ -30,16 +30,16 @@
     "measurements",
     "esm"
   ],
-  "author": "",
+  "author": "Marko Frntić <mfrntic@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/potree-viewer.git"
+    "url": "git+https://github.com/mfrntic/potree-viewer.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/potree-viewer/issues"
+    "url": "https://github.com/mfrntic/potree-viewer/issues"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/potree-viewer#readme",
+  "homepage": "https://github.com/mfrntic/potree-viewer#readme",
   "engines": {
     "node": ">=16.0.0"
   },

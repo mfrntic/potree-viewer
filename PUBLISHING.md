@@ -1,24 +1,21 @@
 # Publishing to npm
 
-This guide explains how to publish `@potree/viewer` package to npm.
+This guide explains how to publish the **unscoped** `potree-viewer` package to npm.
 
 ## Prerequisites
 
 1. **npm account**: Create account at [npmjs.com](https://www.npmjs.com/signup)
 2. **npm login**: Run `npm login` in terminal
-3. **Organization access**: For scoped packages like `@potree/viewer`, you need:
-   - Create organization `@potree` on npm, OR
-   - Change package name to unscoped (e.g., `potree-viewer`)
 
 ## Prepare for Publishing
 
 ### 1. Update package.json
 
-Edit `package.json`:
+Edit `package.json` (we publish unscoped):
 
 ```json
 {
-  "name": "@potree/viewer",  // Or change to "potree-viewer" for unscoped
+  "name": "potree-viewer",
   "version": "0.1.0",        // Update version following semver
   "author": "Your Name <your.email@example.com>",
   "repository": {
