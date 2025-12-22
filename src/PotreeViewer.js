@@ -28,6 +28,7 @@ export class PotreeViewer extends EventEmitter {
     this.animationId = null;
     this.isDisposed = false;
     this.measurementManager = null;
+    this._originalFetch = null;
 
     // Initialize the viewer
     this._init();
@@ -57,6 +58,56 @@ export class PotreeViewer extends EventEmitter {
   _log(message, type = 'debug') {
     if (this._console) {
       this._console.log(message, type);
+    }
+  }
+
+  /**
+   * Install fetch interceptor to add cache control for binary files
+   * Fixes ERR_CACHE_OPERATION_NOT_SUPPORTED errors when loading from Azure Blob Storage
+   * @private
+   */
+  _installFetchInterceptor() {
+    // Only install once (check if already patched)
+    if (window._potreeFetchPatched) {
+      return;
+    }
+
+    // Store original fetch for later restoration
+    this._originalFetch = window.fetch;
+
+    // Create wrapper that adds cache control for binary files
+    window.fetch = (url, options = {}) => {
+      // Check if this is a binary file request
+      const urlString = typeof url === 'string' ? url : url.toString();
+      const isBinaryFile = /\.(bin|las|laz|ply|xyz|pts|e57)(\?|$)/i.test(urlString);
+
+      // For binary files, add cache: 'no-store' to prevent cache operation errors
+      if (isBinaryFile && !options.cache) {
+        options = {
+          ...options,
+          cache: 'no-store'
+        };
+        console.log('[PotreeViewer] Fetch interceptor: Adding cache: no-store for:', urlString);
+      }
+
+      // Call original fetch
+      return this._originalFetch.call(window, url, options);
+    };
+
+    // Mark as patched
+    window._potreeFetchPatched = true;
+    this._log('Fetch interceptor installed for binary file cache control', 'debug');
+  }
+
+  /**
+   * Restore original fetch function
+   * @private
+   */
+  _restoreFetch() {
+    if (this._originalFetch && window._potreeFetchPatched) {
+      window.fetch = this._originalFetch;
+      window._potreeFetchPatched = false;
+      this._log('Fetch interceptor removed', 'debug');
     }
   }
 
@@ -103,6 +154,9 @@ export class PotreeViewer extends EventEmitter {
   _init() {
     try {
       this._log('Initializing PotreeViewer...', 'debug');
+
+      // Patch fetch to add cache control for binary files (fix Azure Blob Storage cache errors)
+      this._installFetchInterceptor();
 
       // Create Three.js scene
       this.scene = new THREE.Scene();
@@ -1510,6 +1564,9 @@ export class PotreeViewer extends EventEmitter {
     // Remove event listeners
     window.removeEventListener('resize', this._boundResizeHandler);
     this.removeAllListeners();
+
+    // Restore original fetch function
+    this._restoreFetch();
 
     // Dispose measurement manager
     if (this.measurementManager) {
