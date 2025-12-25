@@ -539,6 +539,126 @@ export class Toolbar {
     });
     menu.appendChild(sizeTypeControl.container);
 
+    // EDL Section Divider
+    const edlDivider = document.createElement('div');
+    edlDivider.style.cssText = `
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+      margin: 16px 0;
+    `;
+    menu.appendChild(edlDivider);
+
+    // EDL Header with Toggle
+    const edlHeaderContainer = document.createElement('div');
+    edlHeaderContainer.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    `;
+
+    const edlLabel = document.createElement('span');
+    edlLabel.textContent = 'Eye-Dome Lighting';
+    edlLabel.style.cssText = `
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 600;
+    `;
+
+    // EDL Toggle Switch
+    const edlToggleContainer = document.createElement('label');
+    edlToggleContainer.style.cssText = `
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+      cursor: pointer;
+    `;
+
+    const edlToggleInput = document.createElement('input');
+    edlToggleInput.type = 'checkbox';
+    edlToggleInput.checked = this.viewer.isEDLEnabled();
+    edlToggleInput.style.cssText = 'opacity: 0; width: 0; height: 0;';
+
+    const edlToggleSlider = document.createElement('span');
+    edlToggleSlider.style.cssText = `
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: ${edlToggleInput.checked ? '#3498db' : 'rgba(255, 255, 255, 0.2)'};
+      transition: 0.3s;
+      border-radius: 20px;
+    `;
+
+    const edlToggleCircle = document.createElement('span');
+    edlToggleCircle.style.cssText = `
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: ${edlToggleInput.checked ? '23px' : '3px'};
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    `;
+    edlToggleSlider.appendChild(edlToggleCircle);
+
+    edlToggleInput.onchange = (e) => {
+      const enabled = e.target.checked;
+      if (enabled) {
+        this.viewer.enableEDL();
+      } else {
+        this.viewer.disableEDL();
+      }
+      
+      // Update toggle appearance
+      edlToggleSlider.style.backgroundColor = enabled ? '#3498db' : 'rgba(255, 255, 255, 0.2)';
+      edlToggleCircle.style.left = enabled ? '23px' : '3px';
+      
+      // Show/hide EDL controls
+      edlControlsContainer.style.display = enabled ? 'block' : 'none';
+    };
+
+    edlToggleContainer.appendChild(edlToggleInput);
+    edlToggleContainer.appendChild(edlToggleSlider);
+
+    edlHeaderContainer.appendChild(edlLabel);
+    edlHeaderContainer.appendChild(edlToggleContainer);
+    menu.appendChild(edlHeaderContainer);
+
+    // EDL Controls Container (hidden when EDL is off)
+    const edlControlsContainer = document.createElement('div');
+    edlControlsContainer.style.cssText = `
+      display: ${this.viewer.isEDLEnabled() ? 'block' : 'none'};
+      padding-left: 8px;
+      border-left: 2px solid rgba(52, 152, 219, 0.3);
+    `;
+
+    // EDL Strength slider
+    const edlSettings = this.viewer.getEDLSettings();
+    const edlStrengthControl = createSlider('Strength', 0, 2, 0.1, edlSettings.strength, (value) => {
+      this.viewer.setEDLStrength(value);
+    });
+    edlControlsContainer.appendChild(edlStrengthControl.container);
+
+    // EDL Radius slider
+    const edlRadiusControl = createSlider('Radius', 0.5, 3.0, 0.1, edlSettings.radius, (value) => {
+      this.viewer.setEDLRadius(value);
+    });
+    edlControlsContainer.appendChild(edlRadiusControl.container);
+
+    // EDL Opacity slider
+    const edlOpacityControl = createSlider('Opacity', 0, 1, 0.05, edlSettings.opacity, (value) => {
+      this.viewer.setEDLOpacity(value);
+    });
+    edlControlsContainer.appendChild(edlOpacityControl.container);
+
+    menu.appendChild(edlControlsContainer);
+
     // Prevent dropdown from closing when clicking inside
     menu.onclick = (e) => {
       e.stopPropagation();
@@ -591,6 +711,24 @@ export class Toolbar {
         fovControl.slider.value = this.viewer.config.fov;
         fovControl.valueSpan.textContent = this.viewer.config.fov;
 
+        // Update EDL controls
+        const currentEdlSettings = this.viewer.getEDLSettings();
+        const isEdlEnabled = this.viewer.isEDLEnabled();
+        
+        edlToggleInput.checked = isEdlEnabled;
+        edlToggleSlider.style.backgroundColor = isEdlEnabled ? '#3498db' : 'rgba(255, 255, 255, 0.2)';
+        edlToggleCircle.style.left = isEdlEnabled ? '23px' : '3px';
+        edlControlsContainer.style.display = isEdlEnabled ? 'block' : 'none';
+        
+        edlStrengthControl.slider.value = currentEdlSettings.strength;
+        edlStrengthControl.valueSpan.textContent = currentEdlSettings.strength.toFixed(2);
+        
+        edlRadiusControl.slider.value = currentEdlSettings.radius;
+        edlRadiusControl.valueSpan.textContent = currentEdlSettings.radius.toFixed(2);
+        
+        edlOpacityControl.slider.value = currentEdlSettings.opacity;
+        edlOpacityControl.valueSpan.textContent = currentEdlSettings.opacity.toFixed(2);
+
         // Position dropdown intelligently
         this._positionDropdown(menu, button);
       }
@@ -605,7 +743,21 @@ export class Toolbar {
     container.appendChild(menu);
 
     // Store reference
-    this.settingsDropdown = { container, menu, button, sizeControl, budgetControl, fovControl };
+    this.settingsDropdown = { 
+      container, 
+      menu, 
+      button, 
+      sizeControl, 
+      budgetControl, 
+      fovControl,
+      edlToggleInput,
+      edlToggleSlider,
+      edlToggleCircle,
+      edlControlsContainer,
+      edlStrengthControl,
+      edlRadiusControl,
+      edlOpacityControl,
+    };
     this.dropdowns.push(this.settingsDropdown);
 
     return container;

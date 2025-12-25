@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { Potree, PointSizeType, PointShape, PointColorType } from 'potree-core';
+import { Potree, PointSizeType, PointShape, PointColorType, PotreeRenderer } from 'potree-core';
 import { EventEmitter } from './utils/EventEmitter.js';
 import { mergeConfig, validateConfig } from './utils/config.js';
 import { MeasurementManager } from './measurements/MeasurementManager.js';
@@ -24,6 +24,7 @@ export class PotreeViewer extends EventEmitter {
     this.renderer = null;
     this.controls = null;
     this.potree = null;
+    this.potreeRenderer = null;
     this.pointClouds = [];
     this.animationId = null;
     this.isDisposed = false;
@@ -235,6 +236,19 @@ export class PotreeViewer extends EventEmitter {
       this.measurementManager = new MeasurementManager(this);
       this._log('MeasurementManager initialized', 'debug');
 
+      // Create PotreeRenderer with EDL support
+      this.potreeRenderer = new PotreeRenderer({
+        edl: {
+          enabled: this.config.edl?.enabled ?? false,
+          pointCloudLayer: this.config.edl?.pointCloudLayer ?? 1,
+          strength: this.config.edl?.strength ?? 0.4,
+          radius: this.config.edl?.radius ?? 1.4,
+          opacity: this.config.edl?.opacity ?? 1.0,
+          neighbourCount: this.config.edl?.neighbourCount ?? 8,
+        },
+      });
+      this._log(`PotreeRenderer initialized: EDL=${this.config.edl?.enabled ?? false}`, 'debug');
+
       // Handle window resize
       this._boundResizeHandler = this._handleResize.bind(this);
       window.addEventListener('resize', this._boundResizeHandler);
@@ -314,9 +328,27 @@ export class PotreeViewer extends EventEmitter {
       this._updateMeasurementResolutions(width, height);
     }
 
+    // Debug: Log EDL settings every 60 frames (once per second at 60fps)
+    if (this._frameCounter === undefined) this._frameCounter = 0;
+    this._frameCounter++;
+    if (this._frameCounter % 60 === 0 && this.config.edl.enabled) {
+      console.log('[PotreeViewer Render Loop] EDL Settings:', {
+        enabled: this.config.edl.enabled,
+        strength: this.config.edl.strength,
+        radius: this.config.edl.radius,
+        opacity: this.config.edl.opacity,
+      });
+    }
+
     // Render scene (point cloud + measurements)
     if (this.renderer && this.scene && this.camera) {
-      this.renderer.render(this.scene, this.camera);
+      // Use PotreeRenderer for rendering (supports EDL when enabled)
+      this.potreeRenderer.render({
+        renderer: this.renderer,
+        scene: this.scene,
+        camera: this.camera,
+        pointClouds: this.pointClouds,
+      });
     }
   }
 
@@ -1221,6 +1253,164 @@ export class PotreeViewer extends EventEmitter {
   }
 
   /**
+   * Enable Eye-Dome Lighting (EDL) effect
+   * EDL enhances depth perception by applying a shading effect based on point depth differences
+   */
+  enableEDL() {
+    if (this.potreeRenderer) {
+      this.config.edl.enabled = true;
+      // CRITICAL: Always pass complete EDL config object (including all properties)
+      this.potreeRenderer.setEDL({ ...this.config.edl });
+      this.emit('edl-changed', { enabled: true });
+      this._log(`EDL enabled with strength=${this.config.edl.strength}, radius=${this.config.edl.radius}, opacity=${this.config.edl.opacity}`, 'info');
+    }
+  }
+
+  /**
+   * Disable Eye-Dome Lighting (EDL) effect
+   */
+  disableEDL() {
+    if (this.potreeRenderer) {
+      this.config.edl.enabled = false;
+      // CRITICAL: Always pass complete EDL config object (including all properties)
+      this.potreeRenderer.setEDL({ ...this.config.edl });
+      this.emit('edl-changed', { enabled: false });
+      this._log('EDL disabled', 'info');
+    }
+  }
+
+  /**
+   * Toggle Eye-Dome Lighting (EDL) effect
+   * @returns {boolean} New EDL enabled state
+   */
+  toggleEDL() {
+    const newState = !this.config.edl.enabled;
+    if (newState) {
+      this.enableEDL();
+    } else {
+      this.disableEDL();
+    }
+    return newState;
+  }
+
+  /**
+   * Check if EDL is currently enabled
+   * @returns {boolean} True if EDL is enabled
+   */
+  isEDLEnabled() {
+    return this.config.edl?.enabled ?? false;
+  }
+
+  /**
+   * Set EDL strength (intensity of the shading effect)
+   * @param {number} strength - EDL strength (0.0 to 2.0, default: 0.4)
+   */
+  setEDLStrength(strength) {
+    if (this.potreeRenderer) {
+      this.config.edl.strength = strength;
+      // CRITICAL: Always pass complete EDL config object (including all properties)
+      // Passing partial object may disable EDL or cause parameters not to update
+      this.potreeRenderer.setEDL({ ...this.config.edl });
+      this.emit('edl-changed', { strength });
+      console.log('[PotreeViewer] EDL strength changed:', strength, 'Full config:', this.config.edl);
+      this._log(`EDL strength set to ${strength}`, 'debug');
+    }
+  }
+
+  /**
+   * Set EDL radius (sampling radius for neighbor points)
+   * @param {number} radius - EDL radius in pixels (0.5 to 3.0, default: 1.4)
+   */
+  setEDLRadius(radius) {
+    if (this.potreeRenderer) {
+      this.config.edl.radius = radius;
+      // CRITICAL: Always pass complete EDL config object (including all properties)
+      // Passing partial object may disable EDL or cause parameters not to update
+      this.potreeRenderer.setEDL({ ...this.config.edl });
+      this.emit('edl-changed', { radius });
+      console.log('[PotreeViewer] EDL radius changed:', radius, 'Full config:', this.config.edl);
+      this._log(`EDL radius set to ${radius}`, 'debug');
+    }
+  }
+
+  /**
+   * Set EDL opacity (blending of the effect)
+   * @param {number} opacity - EDL opacity (0.0 to 1.0, default: 1.0)
+   */
+  setEDLOpacity(opacity) {
+    if (this.potreeRenderer) {
+      this.config.edl.opacity = opacity;
+      // CRITICAL: Always pass complete EDL config object (including all properties)
+      // Passing partial object may disable EDL or cause parameters not to update
+      this.potreeRenderer.setEDL({ ...this.config.edl });
+      this.emit('edl-changed', { opacity });
+      console.log('[PotreeViewer] EDL opacity changed:', opacity, 'Full config:', this.config.edl);
+      this._log(`EDL opacity set to ${opacity}`, 'debug');
+    }
+  }
+
+  /**
+   * Get current EDL settings
+   * @returns {Object} EDL configuration object
+   */
+  getEDLSettings() {
+    return { ...this.config.edl };
+  }
+
+  /**
+   * Get EDL internal state from PotreeRenderer (for debugging)
+   * @returns {Object} EDL internal state
+   */
+  getEDLInternalState() {
+    if (!this.potreeRenderer || !this.potreeRenderer.edlPass) {
+      return { error: 'EDL not initialized' };
+    }
+    const edlPass = this.potreeRenderer.edlPass;
+    return {
+      enabled: this.config.edl.enabled,
+      strength: edlPass.edlStrength,
+      radius: edlPass.radius,
+      opacity: edlPass.opacity,
+      neighbourCount: edlPass.neighbourCount,
+    };
+  }
+
+  /**
+   * Set multiple EDL parameters at once
+   * @param {Object} options - EDL options object
+   * @param {boolean} [options.enabled] - Enable/disable EDL
+   * @param {number} [options.strength] - EDL strength (0.0 to 2.0)
+   * @param {number} [options.radius] - EDL radius (0.5 to 3.0)
+   * @param {number} [options.opacity] - EDL opacity (0.0 to 1.0)
+   */
+  setEDLSettings(options = {}) {
+    if (this.potreeRenderer) {
+      // Update config with new values
+      if (options.enabled !== undefined) {
+        this.config.edl.enabled = options.enabled;
+      }
+      if (options.strength !== undefined) {
+        this.config.edl.strength = options.strength;
+      }
+      if (options.radius !== undefined) {
+        this.config.edl.radius = options.radius;
+      }
+      if (options.opacity !== undefined) {
+        this.config.edl.opacity = options.opacity;
+      }
+      if (options.pointCloudLayer !== undefined) {
+        this.config.edl.pointCloudLayer = options.pointCloudLayer;
+      }
+
+      // CRITICAL: Always pass complete EDL config object (including all properties)
+      // Passing partial object may disable EDL or cause parameters not to update
+      this.potreeRenderer.setEDL({ ...this.config.edl });
+      this.emit('edl-changed', options);
+      this._log(`EDL settings updated: ${JSON.stringify(options)}`, 'debug');
+    }
+  }
+
+  /**
    * Patch shader to use world.y instead of world.z for elevation calculations
    * This is necessary because we rotate point clouds -90° around X-axis to make Y-up,
    * but potree-core shaders hardcoded use world.z for elevation.
@@ -1572,6 +1762,12 @@ export class PotreeViewer extends EventEmitter {
     if (this.measurementManager) {
       this.measurementManager.dispose();
       this.measurementManager = null;
+    }
+
+    // Dispose PotreeRenderer (releases GPU resources like EDL render targets)
+    if (this.potreeRenderer) {
+      this.potreeRenderer.dispose();
+      this.potreeRenderer = null;
     }
 
     // Dispose controls

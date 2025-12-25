@@ -14,7 +14,8 @@ Modern, framework-agnostic JavaScript library for visualizing large-scale point 
 - 🎨 **Modern UI Components** - Toolbar with dropdown menus and Console for measurements
 - 🌈 **Multiple color modes** - RGB, Elevation, Classification, Intensity, and more
 - 🎥 **Named camera views** - Quick access to Top, Bottom, Left, Right, Front, Back views
-- 📦 **Lightweight** - No jQuery or legacy dependencies
+- � **Eye-Dome Lighting (EDL)** - Enhanced depth perception with customizable shading effect
+- �📦 **Lightweight** - No jQuery or legacy dependencies
 - 🔧 **Full API** - Programmatic control over viewer, measurements, and camera
 - 🎬 **Event-driven** - Subscribe to viewer events for custom integrations
 
@@ -156,6 +157,16 @@ const viewer = new PotreeViewer({
   pointBudget: number,                 // Max visible points (default: 1,000,000)
   fov: number,                         // Field of view in degrees (default: 80)
 
+  // Eye-Dome Lighting (EDL) settings
+  edl: {
+    enabled: boolean,                  // Enable EDL (default: false)
+    strength: number,                  // Shading intensity 0.0-2.0 (default: 0.4)
+    radius: number,                    // Sampling radius 0.5-3.0 (default: 1.4)
+    opacity: number,                   // Effect opacity 0.0-1.0 (default: 1.0)
+    pointCloudLayer: number,           // Render layer (default: 1)
+    neighbourCount: number,            // Neighbor samples (default: 8)
+  },
+
   // Initial view
   initialView: 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right' |
                { position: {x, y, z}, target: {x, y, z} },
@@ -205,6 +216,11 @@ const toolbar = new Toolbar(viewer, {
    - Distance, Height, Angle, Radius, Volume
 4. **Clear Measurements** (X button) - Clears all measurements and exits measurement mode (disabled when no measurements exist)
 5. **Settings** dropdown with:
+   - **Eye-Dome Lighting (EDL)** - Toggle and configure depth enhancement effect
+     - Enable/Disable toggle
+     - Strength slider (0.0 - 2.0) - Shading intensity
+     - Radius slider (0.5 - 3.0) - Sampling radius
+     - Opacity slider (0.0 - 1.0) - Effect opacity
    - Point Budget slider (100K - 10M points) - Controls maximum number of visible points
    - Field of View slider (20° - 100°) - Controls camera perspective
    - Point Size slider (0.1 - 5.0)
@@ -285,6 +301,18 @@ Below is a complete list of all public methods available on the `PotreeViewer` i
 - `setPointOpacity(opacity)` - Set point opacity (0.0 - 1.0)
 - `setPointShape(shape)` - Set point shape ('circle' or 'square')
 - `setPointSizeType(type)` - Set size scaling ('fixed', 'attenuated', or 'adaptive')
+
+**Eye-Dome Lighting (EDL)**
+- `enableEDL()` - Enable EDL effect
+- `disableEDL()` - Disable EDL effect
+- `toggleEDL()` - Toggle EDL on/off (returns new state)
+- `isEDLEnabled()` - Check if EDL is enabled
+- `setEDLStrength(strength)` - Set EDL strength (0.0 - 2.0)
+- `setEDLRadius(radius)` - Set EDL radius (0.5 - 3.0)
+- `setEDLOpacity(opacity)` - Set EDL opacity (0.0 - 1.0)
+- `setEDLSettings(options)` - Set multiple EDL parameters at once
+- `getEDLSettings()` - Get current EDL configuration
+- `getEDLInternalState()` - Get EDL internal state (for debugging)
 
 **Measurements**
 - `setMeasurementMode(mode)` - Set measurement mode ('none', 'distance', 'height', 'angle', 'radius', 'volume')
@@ -382,6 +410,68 @@ viewer.setPointSizeType('adaptive');  // 'fixed', 'attenuated', or 'adaptive'
 - `NORMAL` - Surface normals
 - `LOD` - Level of detail
 - `DEPTH` - Distance from camera (if available)
+
+#### Eye-Dome Lighting (EDL)
+
+EDL enhances depth perception by applying a shading effect based on point depth differences. It's particularly useful for RGB point clouds where depth is hard to perceive.
+
+```javascript
+// Enable/Disable EDL
+viewer.enableEDL();   // Enable with current settings
+viewer.disableEDL();  // Disable EDL
+viewer.toggleEDL();   // Toggle on/off (returns new state: true/false)
+
+// Check if enabled
+const isEnabled = viewer.isEDLEnabled(); // returns true/false
+
+// Configure EDL parameters
+viewer.setEDLStrength(1.2);  // Intensity of shading (0.0 - 2.0)
+viewer.setEDLRadius(2.0);    // Sampling radius in pixels (0.5 - 3.0)
+viewer.setEDLOpacity(0.8);   // Effect opacity (0.0 - 1.0)
+
+// Set multiple parameters at once
+viewer.setEDLSettings({
+  enabled: true,
+  strength: 1.5,
+  radius: 2.0,
+  opacity: 1.0
+});
+
+// Get current settings
+const edlSettings = viewer.getEDLSettings();
+// Returns: { enabled, strength, radius, opacity, pointCloudLayer, neighbourCount }
+
+// Initialize viewer with EDL enabled
+const viewer = new PotreeViewer({
+  container: document.getElementById('viewer'),
+  pointCloudUrl: 'cloud/metadata.json',
+  edl: {
+    enabled: true,
+    strength: 0.8,
+    radius: 1.6,
+    opacity: 1.0
+  }
+});
+```
+
+**EDL Parameters Explained:**
+- **strength** - Controls the intensity of the depth-based shading effect (0.0 = no effect, 2.0 = maximum)
+- **radius** - Sampling radius in screen pixels for neighbor points (larger = smoother but less detailed)
+- **opacity** - Blending opacity of the EDL effect (1.0 = full effect, 0.0 = invisible)
+- **pointCloudLayer** - WebGL render layer for point cloud (typically 1, advanced use only)
+- **neighbourCount** - Number of neighbor samples (8 or 4, advanced use only)
+
+**Important:** When updating EDL parameters at runtime, always ensure you're passing the complete configuration. The `setEDL*()` methods handle this automatically, but if you're using `setEDLSettings()` or working with the underlying `potreeRenderer.setEDL()` directly, use the spread operator:
+
+```javascript
+// ✅ Correct - passes all properties
+const edl = viewer.getEDLSettings();
+edl.strength = 2.0;
+viewer.setEDLSettings({ ...edl });
+
+// ❌ Wrong - may disable EDL or not update properly
+viewer.setEDLSettings({ strength: 2.0 }); // Missing other properties!
+```
 
 #### Measurements
 
@@ -496,6 +586,7 @@ The viewer uses an event system for notifications. Subscribe to events using `vi
 - `measurements-cleared` - All measurements cleared
 - `color-type-changed` - Point color mode changed
 - `background-changed` - Background changed
+- `edl-changed` - EDL settings changed
 
 Subscribe to viewer events:
 
@@ -557,6 +648,12 @@ viewer.on('color-type-changed', (colorType) => {
 viewer.on('background-changed', (background) => {
   console.log('Background changed:', background);
   // Payload: string - 'black' | 'white' | 'gradient' | 'skybox' | hex color
+});
+
+viewer.on('edl-changed', (settings) => {
+  console.log('EDL settings changed:', settings);
+  // Payload: object - { enabled?, strength?, radius?, opacity? }
+  // Only changed properties are included in the payload
 });
 
 // Unsubscribe
@@ -972,6 +1069,7 @@ This library is under active development. Current features:
 - ✅ Console for measurement results
 - ✅ Multiple color modes
 - ✅ Named camera views
+- ✅ Eye-Dome Lighting (EDL) for enhanced depth perception
 - ✅ Point appearance controls (size, shape, size type)
 - ✅ Multiple background options
 - ✅ Event system for integrations

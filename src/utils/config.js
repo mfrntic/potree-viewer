@@ -10,7 +10,16 @@ export const DEFAULT_CONFIG = {
   // Viewer settings
   pointBudget: 'auto', // 'auto' = use total points from metadata, or set a specific number
   fov: 80,
-  edlEnabled: false, // Reserved for future custom implementation
+
+  // Eye-Dome Lighting (EDL) settings
+  edl: {
+    enabled: false,
+    pointCloudLayer: 1,
+    strength: 0.4,
+    radius: 1.4,
+    opacity: 1.0,
+    neighbourCount: 8,
+  },
 
   // Initial view
   initialView: 'right', // 'top' | 'front' | 'right' | 'isometric' | { position, target }
@@ -51,6 +60,12 @@ export function mergeConfig(userOptions = {}) {
         // Deep merge material config
         config.material = {
           ...DEFAULT_CONFIG.material,
+          ...userOptions[key],
+        };
+      } else if (key === 'edl' && typeof userOptions[key] === 'object') {
+        // Deep merge EDL config
+        config.edl = {
+          ...DEFAULT_CONFIG.edl,
           ...userOptions[key],
         };
       } else {
