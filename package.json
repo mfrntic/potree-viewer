@@ -1,6 +1,6 @@
 {
   "name": "potree-viewer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Modern, framework-agnostic point cloud viewer built on potree-core and Three.js",
   "type": "module",
   "main": "./src/index.js",
